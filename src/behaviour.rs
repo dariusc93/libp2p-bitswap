@@ -697,7 +697,9 @@ mod tests {
     use libipld::multihash::Code;
     use libipld::store::DefaultParams;
     use libp2p::core::muxing::StreamMuxerBox;
+    use libp2p::core::transport::timeout::TransportTimeout;
     use libp2p::core::transport::Boxed;
+    use libp2p::dns::DnsConfig;
     use libp2p::identity;
     use libp2p::noise::{Keypair, NoiseConfig, X25519Spec};
     use libp2p::swarm::SwarmEvent;
@@ -716,7 +718,7 @@ mod tests {
             .ok();
     }
 
-    fn mk_transport() -> (PeerId, Boxed<(PeerId, StreamMuxerBox)>) {
+    async fn mk_transport() -> (PeerId, Boxed<(PeerId, StreamMuxerBox)>) {
         let id_key = identity::Keypair::generate_ed25519();
         let peer_id = id_key.public().to_peer_id();
         let dh_key = Keypair::<X25519Spec>::new()
@@ -724,12 +726,18 @@ mod tests {
             .unwrap();
         let noise = NoiseConfig::xx(dh_key).into_authenticated();
 
-        let transport = async_io::Transport::new(tcp::Config::new().nodelay(true))
+        let tcp_transport = async_io::Transport::new(tcp::Config::new().nodelay(true));
+
+        let transport_timeout = TransportTimeout::new(tcp_transport, Duration::from_secs(30));
+        let transport = DnsConfig::system(transport_timeout).await.unwrap();
+
+        let transport = transport
             .upgrade(libp2p::core::upgrade::Version::V1)
             .authenticate(noise)
             .multiplex(YamuxConfig::default())
             .timeout(Duration::from_secs(20))
             .boxed();
+
         (peer_id, transport)
     }
 
@@ -780,7 +788,7 @@ mod tests {
 
     impl Peer {
         fn new() -> Self {
-            let (peer_id, trans) = mk_transport();
+            let (peer_id, trans) = futures::executor::block_on(mk_transport());
             let store = Store::default();
             let mut swarm = Swarm::with_async_std_executor(
                 trans,
@@ -957,13 +965,13 @@ mod tests {
     #[async_std::test]
     async fn compat_test() {
         tracing_try_init();
-        let cid: Cid = "QmP8njGuyiw9cjkhwHD9nZhyBTHufXFanAvZgcy9xYoWiB"
+        let cid: Cid = "QmPZ9gcCEpqKTo6aq61g2nXGUhM4iCL3ewB6LDXZCtioEB"
             .parse()
             .unwrap();
-        let peer_id: PeerId = "12D3KooWC1EaEEpghwnPdd89LaPTKEweD1PRLz4aRBkJEA9UiUuS"
+        let peer_id: PeerId = "QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN"
             .parse()
             .unwrap();
-        let multiaddr: Multiaddr = "/ip4/95.217.194.97/tcp/8008".parse().unwrap();
+        let multiaddr: Multiaddr = "/dnsaddr/bootstrap.libp2p.io".parse().unwrap();
 
         let mut peer = Peer::new();
         peer.swarm()
