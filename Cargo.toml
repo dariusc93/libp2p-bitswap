@@ -17,7 +17,7 @@ prost-build = { version = "0.11", optional = true }
 async-trait = "0.1"
 fnv = "1.0.7"
 futures = "0.3.19"
-lazy_static = "1.4.0"
+once_cell = "1"
 libipld = { version = "0.15.0", default-features = false }
 libp2p = { version = "0.50.0", features = ["request-response"] }
 prometheus = "0.13.0"
