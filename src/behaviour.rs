@@ -787,8 +787,8 @@ mod tests {
     }
 
     impl Peer {
-        fn new() -> Self {
-            let (peer_id, trans) = futures::executor::block_on(mk_transport());
+        async fn new() -> Self {
+            let (peer_id, trans) = mk_transport().await;
             let store = Store::default();
             let mut swarm = Swarm::with_async_std_executor(
                 trans,
@@ -867,8 +867,8 @@ mod tests {
     #[async_std::test]
     async fn test_bitswap_get() {
         tracing_try_init();
-        let mut peer1 = Peer::new();
-        let mut peer2 = Peer::new();
+        let mut peer1 = Peer::new().await;
+        let mut peer2 = Peer::new().await;
         peer2.add_address(&peer1);
 
         let block = create_block(ipld!(&b"hello world"[..]));
@@ -886,8 +886,8 @@ mod tests {
     #[async_std::test]
     async fn test_bitswap_cancel_get() {
         tracing_try_init();
-        let mut peer1 = Peer::new();
-        let mut peer2 = Peer::new();
+        let mut peer1 = Peer::new().await;
+        let mut peer2 = Peer::new().await;
         peer2.add_address(&peer1);
 
         let block = create_block(ipld!(&b"hello world"[..]));
@@ -907,8 +907,8 @@ mod tests {
     #[async_std::test]
     async fn test_bitswap_sync() {
         tracing_try_init();
-        let mut peer1 = Peer::new();
-        let mut peer2 = Peer::new();
+        let mut peer1 = Peer::new().await;
+        let mut peer2 = Peer::new().await;
         peer2.add_address(&peer1);
 
         let b0 = create_block(ipld!({
@@ -942,8 +942,8 @@ mod tests {
     #[async_std::test]
     async fn test_bitswap_cancel_sync() {
         tracing_try_init();
-        let mut peer1 = Peer::new();
-        let mut peer2 = Peer::new();
+        let mut peer1 = Peer::new().await;
+        let mut peer2 = Peer::new().await;
         peer2.add_address(&peer1);
 
         let block = create_block(ipld!(&b"hello world"[..]));
@@ -973,7 +973,7 @@ mod tests {
             .unwrap();
         let multiaddr: Multiaddr = "/dnsaddr/bootstrap.libp2p.io".parse().unwrap();
 
-        let mut peer = Peer::new();
+        let mut peer = Peer::new().await;
         peer.swarm()
             .behaviour_mut()
             .add_address(&peer_id, multiaddr);
