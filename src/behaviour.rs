@@ -6,7 +6,7 @@
 //! The `Bitswap` struct implements the `NetworkBehaviour` trait. When used, it
 //! will allow providing and reciving IPFS blocks.
 #[cfg(feature = "compat")]
-use crate::compat::{CompatMessage, CompatProtocol, InboundMessage};
+use crate::compat::{CompatMessage, CompatProtocol, CompatProtocolOutbound, InboundMessage};
 use crate::protocol::{
     BitswapCodec, BitswapProtocol, BitswapRequest, BitswapResponse, RequestType,
 };
@@ -84,7 +84,7 @@ pub struct BitswapConfig {
     /// Time a connection is kept alive.
     pub connection_keep_alive: Duration,
     /// protocol name
-    pub protocol_name: Vec<u8>,
+    pub protocol_name: &'static [u8],
 }
 
 impl BitswapConfig {
@@ -93,7 +93,10 @@ impl BitswapConfig {
         Self {
             request_timeout: Duration::from_secs(10),
             connection_keep_alive: Duration::from_secs(10),
-            protocol_name: b"/ipfs-embed/bitswap/1.0.0".to_vec(),
+            #[cfg(not(feature = "compat"))]
+            protocol_name: b"/ipfs-embed/bitswap/1.0.0",
+            #[cfg(feature = "compat")]
+            protocol_name: crate::compat::DEFAULT_PROTOCOL_NAME,
         }
     }
 }
@@ -132,6 +135,8 @@ pub struct Bitswap<P: StoreParams> {
     /// Compat peers.
     #[cfg(feature = "compat")]
     compat: FnvHashSet<PeerId>,
+    #[cfg(feature = "compat")]
+    protocol_name: &'static [u8],
 }
 
 impl<P: StoreParams> Bitswap<P> {
@@ -146,6 +151,9 @@ impl<P: StoreParams> Bitswap<P> {
         rr_config.set_request_timeout(config.request_timeout);
         let protocols = std::iter::once((
             BitswapProtocol {
+                #[cfg(feature = "compat")]
+                protocol_name: b"/ipfs-embed/bitswap/1.0.0",
+                #[cfg(not(feature = "compat"))]
                 protocol_name: config.protocol_name,
             },
             ProtocolSupport::Full,
@@ -160,6 +168,8 @@ impl<P: StoreParams> Bitswap<P> {
             db_rx,
             #[cfg(feature = "compat")]
             compat: Default::default(),
+            #[cfg(feature = "compat")]
+            protocol_name: config.protocol_name,
         }
     }
 
@@ -400,7 +410,7 @@ impl<P: StoreParams> NetworkBehaviour for Bitswap<P> {
     #[allow(clippy::type_complexity)]
     type ConnectionHandler = ConnectionHandlerSelect<
         <RequestResponse<BitswapCodec<P>> as NetworkBehaviour>::ConnectionHandler,
-        OneShotHandler<CompatProtocol, CompatMessage, InboundMessage>,
+        OneShotHandler<CompatProtocol, CompatProtocolOutbound, InboundMessage>,
     >;
     type OutEvent = BitswapEvent;
 
@@ -422,7 +432,20 @@ impl<P: StoreParams> NetworkBehaviour for Bitswap<P> {
         return self
             .inner
             .handle_established_inbound_connection(connection_id, peer, local_addr, remote_addr)
-            .map(|handle| ConnectionHandler::select(handle, OneShotHandler::default()));
+            .map(|handle| {
+                ConnectionHandler::select(
+                    handle,
+                    OneShotHandler::new(
+                        libp2p::swarm::SubstreamProtocol::new(
+                            CompatProtocol {
+                                protocol_name: self.protocol_name,
+                            },
+                            (),
+                        ),
+                        Default::default(),
+                    ),
+                )
+            });
     }
 
     fn handle_established_outbound_connection(
@@ -443,7 +466,20 @@ impl<P: StoreParams> NetworkBehaviour for Bitswap<P> {
         return self
             .inner
             .handle_established_outbound_connection(connection_id, peer, addr, role_override)
-            .map(|handle| ConnectionHandler::select(handle, OneShotHandler::default()));
+            .map(|handle| {
+                ConnectionHandler::select(
+                    handle,
+                    OneShotHandler::new(
+                        libp2p::swarm::SubstreamProtocol::new(
+                            CompatProtocol {
+                                protocol_name: self.protocol_name,
+                            },
+                            (),
+                        ),
+                        Default::default(),
+                    ),
+                )
+            });
     }
 
     fn handle_pending_outbound_connection(
@@ -583,7 +619,10 @@ impl<P: StoreParams> NetworkBehaviour for Bitswap<P> {
                             return Poll::Ready(NetworkBehaviourAction::NotifyHandler {
                                 peer_id,
                                 handler: NotifyHandler::Any,
-                                event: Either::Right(compat),
+                                event: Either::Right(CompatProtocolOutbound {
+                                    protocol_name: self.protocol_name,
+                                    message: compat,
+                                }),
                             });
                         }
                     },
@@ -716,7 +755,10 @@ impl<P: StoreParams> NetworkBehaviour for Bitswap<P> {
                                     return Poll::Ready(NetworkBehaviourAction::NotifyHandler {
                                         peer_id: peer,
                                         handler: NotifyHandler::Any,
-                                        event: Either::Right(CompatMessage::Request(request)),
+                                        event: Either::Right(CompatProtocolOutbound {
+                                            protocol_name: self.protocol_name,
+                                            message: CompatMessage::Request(request),
+                                        }),
                                     });
                                 }
                             }
