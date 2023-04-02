@@ -13,11 +13,21 @@ use unsigned_varint::{aio, io::ReadError};
 const MAX_CID_SIZE: usize = 4 * 10 + 64;
 
 #[derive(Clone, Debug)]
-pub struct BitswapProtocol;
+pub struct BitswapProtocol {
+    pub protocol_name: Vec<u8>
+}
+
+impl Default for BitswapProtocol {
+    fn default() -> Self {
+        Self {
+            protocol_name: b"/ipfs-embed/bitswap/1.0.0".to_vec()
+        }
+    }
+}
 
 impl ProtocolName for BitswapProtocol {
     fn protocol_name(&self) -> &[u8] {
-        b"/ipfs-embed/bitswap/1.0.0"
+        &self.protocol_name
     }
 }
 

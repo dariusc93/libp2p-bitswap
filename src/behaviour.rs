@@ -77,12 +77,14 @@ pub trait BitswapStore: Send + Sync + 'static {
 }
 
 /// Bitswap configuration.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct BitswapConfig {
     /// Timeout of a request.
     pub request_timeout: Duration,
     /// Time a connection is kept alive.
     pub connection_keep_alive: Duration,
+    /// protocol name
+    pub protocol_name: Vec<u8>,
 }
 
 impl BitswapConfig {
@@ -91,6 +93,7 @@ impl BitswapConfig {
         Self {
             request_timeout: Duration::from_secs(10),
             connection_keep_alive: Duration::from_secs(10),
+            protocol_name: b"/ipfs-embed/bitswap/1.0.0".to_vec(),
         }
     }
 }
@@ -141,7 +144,12 @@ impl<P: StoreParams> Bitswap<P> {
         let mut rr_config = RequestResponseConfig::default();
         rr_config.set_connection_keep_alive(config.connection_keep_alive);
         rr_config.set_request_timeout(config.request_timeout);
-        let protocols = std::iter::once((BitswapProtocol, ProtocolSupport::Full));
+        let protocols = std::iter::once((
+            BitswapProtocol {
+                protocol_name: config.protocol_name,
+            },
+            ProtocolSupport::Full,
+        ));
         let inner = RequestResponse::new(BitswapCodec::<P>::default(), protocols, rr_config);
         let (db_tx, db_rx) = start_db_thread(store, executor);
         Self {
