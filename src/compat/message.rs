@@ -64,7 +64,7 @@ impl CompatMessage {
         let mut parts = vec![];
         for entry in msg.wantlist.unwrap_or_default().entries {
             if !entry.send_dont_have {
-                tracing::error!("message hasn't set `send_dont_have`: skipping");
+                tracing::warn!("message hasn't set `send_dont_have`: skipping");
                 continue;
             }
             let cid = Cid::try_from(entry.block).map_err(other)?;
