@@ -40,7 +40,9 @@ use libp2p::{
         Event as RequestResponseEvent, InboundFailure, Message as RequestResponseMessage,
         OutboundFailure, ProtocolSupport, RequestId, ResponseChannel,
     },
-    swarm::{ConnectionHandler, NetworkBehaviour, NetworkBehaviourAction, PollParameters},
+    swarm::{
+        ConnectionHandler, NetworkBehaviour, PollParameters, ToSwarm as NetworkBehaviourAction,
+    },
 };
 use prometheus::Registry;
 use std::{pin::Pin, time::Duration};
@@ -747,7 +749,7 @@ mod tests {
     use libp2p::dns::DnsConfig;
     use libp2p::identity;
     use libp2p::noise::{Keypair, NoiseConfig, X25519Spec};
-    use libp2p::swarm::SwarmEvent;
+    use libp2p::swarm::{SwarmBuilder, SwarmEvent};
     use libp2p::tcp::{self, async_io};
     use libp2p::yamux::YamuxConfig;
     use libp2p::{PeerId, Swarm, Transport};
@@ -835,7 +837,7 @@ mod tests {
         async fn new() -> Self {
             let (peer_id, trans) = mk_transport().await;
             let store = Store::default();
-            let mut swarm = Swarm::with_async_std_executor(
+            let mut swarm = SwarmBuilder::with_async_std_executor(
                 trans,
                 Bitswap::new(
                     BitswapConfig::new(),
@@ -845,7 +847,8 @@ mod tests {
                     }),
                 ),
                 peer_id,
-            );
+            )
+            .build();
             Swarm::listen_on(&mut swarm, "/ip4/127.0.0.1/tcp/0".parse().unwrap()).unwrap();
             while swarm.next().now_or_never().is_some() {}
             let addr = Swarm::listeners(&swarm).next().unwrap().clone();
